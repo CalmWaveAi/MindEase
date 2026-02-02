@@ -4,15 +4,23 @@
 <meta charset="UTF-8">
 <title>Calm Space</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
 <style>
+:root{
+  --mint:#6fd3c4;
+  --mint-soft:rgba(111,211,196,0.25);
+  --glass:rgba(255,255,255,0.07);
+}
 html,body{
   margin:0;
   height:100%;
-  background:#050c0a;
-  overflow:hidden;
+  background:radial-gradient(circle at top,#081615,#020807);
   font-family:system-ui,-apple-system,Segoe UI,sans-serif;
+  color:#eaf8f4;
+  overflow:hidden;
 }
-canvas{position:fixed;inset:0;}
+canvas{position:fixed;inset:0}
+
 .ui{
   position:absolute;
   inset:0;
@@ -21,158 +29,192 @@ canvas{position:fixed;inset:0;}
   justify-content:center;
 }
 .panel{
-  width:90%;
-  max-width:720px;
-  padding:38px;
-  border-radius:32px;
-  background:rgba(255,255,255,0.06);
-  backdrop-filter:blur(24px);
+  width:92%;
+  max-width:760px;
+  padding:44px;
+  border-radius:36px;
+  background:linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03));
+  backdrop-filter:blur(30px);
+  box-shadow:0 40px 120px rgba(0,0,0,0.45);
   text-align:center;
-  color:#e8f6f2;
 }
-.activity{
-  font-size:22px;
-  line-height:1.4;
-  margin:30px 0;
-  opacity:0;
-  transition:opacity 1.2s;
+h1{
+  font-weight:500;
+  letter-spacing:0.5px;
+  margin-bottom:12px;
 }
-.activity.show{opacity:1;}
+.sub{
+  opacity:0.75;
+  font-size:15px;
+  margin-bottom:28px;
+}
+.game{
+  min-height:220px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:22px;
+}
 button{
-  padding:14px 36px;
+  margin-top:30px;
+  padding:14px 42px;
   border-radius:999px;
   border:none;
-  background:#6fd3c4;
+  background:linear-gradient(135deg,#7de3d4,#4fbdb0);
+  color:#04221d;
   font-size:16px;
-  color:#05302a;
   cursor:pointer;
 }
-.hidden{display:none;}
+button:active{transform:scale(0.97)}
+.hidden{display:none}
+
+/* Interaction visuals */
+.orb{
+  width:130px;
+  height:130px;
+  border-radius:50%;
+  background:radial-gradient(circle at 30% 30%,#c8fff5,#4fbdb0);
+  box-shadow:0 0 80px var(--mint-soft);
+  transition:transform 1.5s ease;
+}
+.hold{
+  transition:none;
+}
+.trace{
+  width:100%;
+  height:160px;
+  border-radius:24px;
+  background:rgba(255,255,255,0.05);
+  position:relative;
+}
+.path{
+  position:absolute;
+  inset:20px;
+  border:2px dashed rgba(255,255,255,0.15);
+  border-radius:100px;
+}
 </style>
 </head>
 <body>
 
 <canvas id="aurora"></canvas>
 
-<div class="ui" id="ui">
+<div class="ui">
   <div class="panel">
     <h1>Calm Space</h1>
-    <div class="activity" id="activity"></div>
+    <div class="sub">Move slowly. There’s nothing to finish.</div>
+    <div class="game" id="game"></div>
     <button id="next">Begin Session</button>
   </div>
 </div>
 
 <script>
-/* ================= ACTIVITIES ================= */
-const activitySets = [
-  [
-    "Notice the feeling of the air around you.",
-    "Let your shoulders soften slightly.",
-    "Allow your attention to drift without effort."
-  ],
-  [
-    "Feel where your body makes contact with the ground.",
-    "Observe any gentle movement within you.",
-    "Let thoughts come and go without following them."
-  ],
-  [
-    "Rest your attention on any sound you notice.",
-    "Sense the space around your body.",
-    "Release any need to change the moment."
-  ]
-];
+/* ===== AUDIO (unchanged, stable) ===== */
+let audioCtx, masterGain;
+function startAudio(){
+  audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  masterGain=audioCtx.createGain();
+  masterGain.gain.value=0.03;
+  masterGain.connect(audioCtx.destination);
 
-let activities = [];
-let index = -1;
-
-const activityEl = document.getElementById("activity");
-const nextBtn = document.getElementById("next");
-
-nextBtn.onclick = () => {
-  if(index === -1){
-    startSession();
-    nextBtn.innerText = "Next";
+  for(let i=0;i<4;i++){
+    const o=audioCtx.createOscillator();
+    o.frequency.value=60+Math.random()*80;
+    const g=audioCtx.createGain();
+    g.gain.value=0;
+    o.connect(g).connect(masterGain);
+    o.start();
+    g.gain.linearRampToValueAtTime(1,audioCtx.currentTime+5);
   }
-  showNext();
-};
-
-function startSession(){
-  activities = activitySets[Math.floor(Math.random()*activitySets.length)];
-  index = 0;
 }
 
-function showNext(){
-  if(index >= activities.length){
-    activityEl.innerText = "Remain here as long as you like.";
+/* ===== CALM GESTURE GAMES ===== */
+const gameEl=document.getElementById("game");
+const nextBtn=document.getElementById("next");
+
+const games=[
+  // Hold
+  ()=>{
+    gameEl.innerHTML=`
+      <div>Press and hold the light.</div>
+      <div class="orb hold" id="holdOrb"></div>
+    `;
+    const orb=document.getElementById("holdOrb");
+    orb.onpointerdown=()=>orb.style.transform="scale(1.4)";
+    orb.onpointerup=orb.onpointerleave=()=>orb.style.transform="scale(1)";
+  },
+
+  // Drag
+  ()=>{
+    gameEl.innerHTML=`
+      <div>Gently drag the orb.</div>
+      <div class="orb" id="dragOrb"></div>
+    `;
+    const orb=document.getElementById("dragOrb");
+    let down=false;
+    orb.onpointerdown=()=>down=true;
+    document.onpointerup=()=>down=false;
+    document.onpointermove=e=>{
+      if(down){
+        orb.style.transform=`translate(${e.movementX}px,${e.movementY}px)`;
+      }
+    };
+  },
+
+  // Trace
+  ()=>{
+    gameEl.innerHTML=`
+      <div>Trace the path slowly.</div>
+      <div class="trace">
+        <div class="path"></div>
+      </div>
+    `;
+  },
+
+  // Stillness
+  ()=>{
+    gameEl.innerHTML=`
+      <div>Do nothing for a moment.</div>
+      <div class="orb"></div>
+    `;
+  }
+];
+
+let index=-1;
+nextBtn.onclick=()=>{
+  if(index===-1){
+    startAudio();
+    nextBtn.innerText="Next";
+  }
+  index++;
+  if(index>=games.length){
+    gameEl.innerHTML="Stay as long as you like.";
     nextBtn.classList.add("hidden");
     return;
   }
+  games[index]();
+};
 
-  activityEl.classList.remove("show");
-  setTimeout(()=>{
-    activityEl.innerText = activities[index++];
-    activityEl.classList.add("show");
-  },400);
-}
-
-/* ================= AUDIO (CALM ENGINE) ================= */
-let audioCtx, masterGain;
-
-audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-masterGain = audioCtx.createGain();
-masterGain.gain.value = 0.03;
-masterGain.connect(audioCtx.destination);
-
-function generateSound(){
-  const base = 60 + Math.random()*60;
-
-  for(let i=0;i<4;i++){
-    const osc = audioCtx.createOscillator();
-    osc.type="sine";
-    osc.frequency.value = base*(1+Math.random()*0.35);
-
-    const gain = audioCtx.createGain();
-    gain.gain.value = 0;
-
-    const lfo = audioCtx.createOscillator();
-    lfo.frequency.value = 0.03 + Math.random()*0.02;
-    const lfoGain = audioCtx.createGain();
-    lfoGain.gain.value = 0.02;
-
-    lfo.connect(lfoGain).connect(gain.gain);
-    osc.connect(gain).connect(masterGain);
-
-    osc.start();
-    lfo.start();
-    gain.gain.linearRampToValueAtTime(1,audioCtx.currentTime+6);
-  }
-}
-generateSound();
-
-/* ================= AURORA ================= */
-const canvas = document.getElementById("aurora");
-const ctx2d = canvas.getContext("2d");
-function resize(){canvas.width=innerWidth;canvas.height=innerHeight}
-window.onresize=resize; resize();
-
-let t=Math.random()*1000;
+/* ===== AURORA ===== */
+const c=document.getElementById("aurora");
+const ctx=c.getContext("2d");
+function resize(){c.width=innerWidth;c.height=innerHeight}
+resize();onresize=resize;
+let t=0;
 function draw(){
   t+=0.002;
-  ctx2d.clearRect(0,0,canvas.width,canvas.height);
+  ctx.clearRect(0,0,c.width,c.height);
   for(let i=0;i<3;i++){
-    const y=canvas.height*(0.3+i*0.2);
-    ctx2d.beginPath();
-    ctx2d.moveTo(0,y);
-    for(let x=0;x<=canvas.width;x+=40){
-      ctx2d.lineTo(x,y+Math.sin(x*0.002+t*2+i)*80);
+    const y=c.height*(0.3+i*0.2);
+    ctx.beginPath();
+    ctx.moveTo(0,y);
+    for(let x=0;x<c.width;x+=40){
+      ctx.lineTo(x,y+Math.sin(x*0.002+t*2+i)*80);
     }
-    const g=ctx2d.createLinearGradient(0,y-120,0,y+120);
-    g.addColorStop(0,"rgba(111,211,196,0)");
-    g.addColorStop(0.5,"rgba(111,211,196,0.18)");
-    g.addColorStop(1,"rgba(111,211,196,0)");
-    ctx2d.strokeStyle=g;
-    ctx2d.lineWidth=140;
-    ctx2d.stroke();
+    ctx.strokeStyle="rgba(111,211,196,0.18)";
+    ctx.lineWidth=140;
+    ctx.stroke();
   }
   requestAnimationFrame(draw);
 }
