@@ -34,7 +34,7 @@ button:active{transform:scale(.97)}
 <div class="ui">
   <div class="panel">
     <h1>Calm Space</h1>
-    <div class="sub">There is nothing to finish.</div>
+    <div class="sub">Relax and enjoy the moment.</div>
     <div class="game" id="game"></div>
     <button id="next">Begin Session</button>
   </div>
@@ -75,14 +75,16 @@ function startAudio(){
   masterGain=audioCtx.createGain();
   masterGain.gain.value=.03;
   masterGain.connect(audioCtx.destination);
+
+  // Generate calming oscillators
   for(let i=0;i<4;i++){
     const o=audioCtx.createOscillator();
-    o.frequency.value=50+Math.random()*100;
+    o.frequency.value=50+Math.random()*50;
     const g=audioCtx.createGain();
     g.gain.value=0;
     o.connect(g).connect(masterGain);
     o.start();
-    g.gain.linearRampToValueAtTime(1,audioCtx.currentTime+5);
+    g.gain.linearRampToValueAtTime(0.2,audioCtx.currentTime+5);
   }
 }
 
@@ -105,18 +107,10 @@ const nextBtn=document.getElementById("next");
 nextBtn.addEventListener("click",()=>{
   if(used>=MAX_FREE){showPaywall();return;}
   startAudio();
-  if(index===-1){
-    used++;
-    localStorage.setItem("calm_sessions",used);
-    nextBtn.innerText="Next";
-  }
+  if(index===-1){used++;localStorage.setItem("calm_sessions",used);nextBtn.innerText="Next";}
   index++;
-  if(index<games.length){
-    games[index]();
-  } else {
-    gameEl.innerHTML="Stay as long as you like.";
-    nextBtn.classList.add("hidden");
-  }
+  if(index<games.length){games[index]();}
+  else {gameEl.innerHTML="Stay as long as you like."; nextBtn.classList.add("hidden");}
 });
 
 /* ===== PAYWALL ===== */
@@ -157,7 +151,7 @@ let t=0;
     ctx.beginPath();
     ctx.moveTo(0,c.height*(0.35+i*0.25));
     for(let x=0;x<c.width;x+=60){
-      ctx.lineTo(x,c.height*(0.35+i*0.25)+Math.sin(x*.002+t*2+i)*60);
+      ctx.lineTo(x,c.height*(0.35+i*0.25)+Math.sin(x*0.002+t*2+i)*60);
     }
     ctx.strokeStyle="rgba(111,211,196,.16)";
     ctx.lineWidth=120;
